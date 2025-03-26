@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: asistente-ia-surfin
+    env: node
+    buildCommand: npm install
+    startCommand: node index.js
+    envVars:
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: SHOPIFY_API_KEY
+        sync: false
+      - key: SHOPIFY_STORE_DOMAIN
+        sync: false
