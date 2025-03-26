@@ -7,10 +7,9 @@ const OpenAI = require("openai");
 const app = express();
 app.use(express.json());
 
-// ✅ Configura CORS para aceptar peticiones desde Shopify
-app.use(cors({
-  origin: "https://surfin-store-spain.myshopify.com" // ← reemplaza con el dominio de tu tienda real
-}));
+// ✅ Permitir todas las peticiones desde cualquier origen
+app.use(cors());
+app.options("*", cors()); // ← manejar las preflight requests también
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
@@ -24,13 +23,11 @@ const shopifyAxios = axios.create({
   }
 });
 
-// Función para obtener productos de Shopify
 async function getProducts() {
   const res = await shopifyAxios.get('/products.json?limit=10');
   return res.data.products;
 }
 
-// Endpoint del chatbot
 app.post("/ask", async (req, res) => {
   const { question } = req.body;
 
@@ -46,7 +43,7 @@ ${context}
 
 Pregunta del cliente:
 ${question}
-    `;
+`;
 
     const gptRes = await openai.chat.completions.create({
       model: "gpt-4",
@@ -61,5 +58,4 @@ ${question}
   }
 });
 
-// Iniciar servidor
 app.listen(3000, () => console.log("Bot activo en http://localhost:3000"));
