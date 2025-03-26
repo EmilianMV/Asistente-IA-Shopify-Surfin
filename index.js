@@ -6,10 +6,8 @@ const OpenAI = require("openai");
 
 const app = express();
 app.use(express.json());
-
-// ✅ Permitir todas las peticiones desde cualquier origen
 app.use(cors());
-app.options("*", cors()); // ← manejar las preflight requests también
+app.options("*", cors());
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
@@ -23,22 +21,31 @@ const shopifyAxios = axios.create({
   }
 });
 
-async function getProducts() {
+// Obtener productos activos y con variantes en stock
+async function getAvailableProducts() {
   const res = await shopifyAxios.get('/products.json?limit=10');
-  return res.data.products;
+  const products = res.data.products;
+
+  return products
+    .filter(p => p.variants.some(v => v.inventory_quantity > 0))
+    .map(p => ({
+      title: p.title,
+      description: p.body_html.replace(/<[^>]+>/g, '').slice(0, 100) + "...",
+      image: p.images[0]?.src || "https://via.placeholder.com/100",
+      url: `https://${process.env.SHOPIFY_STORE_DOMAIN.replace('.myshopify.com', '')}.com/products/${p.handle}`
+    }));
 }
 
 app.post("/ask", async (req, res) => {
   const { question } = req.body;
 
   try {
-    const products = await getProducts();
-    const context = products.map(p => `${p.title}: ${p.body_html}`).join("\n");
+    const products = await getAvailableProducts();
+    const context = products.map(p => `${p.title}: ${p.description}`).join("\n");
 
     const prompt = `
-Eres un asistente experto en skate, snowboard y ropa urbana. El cliente te pregunta qué producto debería comprar. Usa los siguientes datos para responder con precisión. No inventes datos. Si no sabes, di "Déjame comprobarlo".
+Eres un asesor experto de una tienda de skate, snowboard y ropa urbana. Recomienda productos según lo que el cliente busca. A continuación tienes algunos productos disponibles:
 
-Productos disponibles:
 ${context}
 
 Pregunta del cliente:
@@ -50,12 +57,15 @@ ${question}
       messages: [{ role: "user", content: prompt }]
     });
 
-    res.json({ reply: gptRes.choices[0].message.content });
+    res.json({
+      reply: gptRes.choices[0].message.content,
+      products: products
+    });
 
   } catch (error) {
-    console.error("Error al procesar la solicitud:", error.message);
-    res.status(500).json({ error: "Hubo un error con el chatbot." });
+    console.error("Error:", error.message);
+    res.status(500).json({ error: "Error al procesar la solicitud del chatbot." });
   }
 });
 
-app.listen(3000, () => console.log("Bot activo en http://localhost:3000"));
+app.listen(3000, () => console.log("Bot activo en Render"));
