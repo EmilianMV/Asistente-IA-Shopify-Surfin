@@ -1,14 +1,15 @@
 require("dotenv").config();
 const express = require("express");
 const axios = require("axios");
-const { Configuration, OpenAIApi } = require("openai");
+const OpenAI = require("openai"); // ← NUEVO
 
 const app = express();
 app.use(express.json());
 
-const openai = new OpenAIApi(new Configuration({
+// Inicializa OpenAI con la sintaxis de la v4
+const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
-}));
+});
 
 const shopifyAxios = axios.create({
   baseURL: `https://${process.env.SHOPIFY_STORE_DOMAIN}/admin/api/2023-07`,
@@ -27,11 +28,13 @@ async function getProducts() {
 // Endpoint del chatbot
 app.post("/ask", async (req, res) => {
   const { question } = req.body;
-  const products = await getProducts();
 
-  const context = products.map(p => `${p.title}: ${p.body_html}`).join("\n");
+  try {
+    const products = await getProducts();
 
-  const prompt = `
+    const context = products.map(p => `${p.title}: ${p.body_html}`).join("\n");
+
+    const prompt = `
 Eres un asistente experto en skate, snowboard y ropa urbana. El cliente te pregunta qué producto debería comprar. Usa los siguientes datos para responder con precisión. No inventes datos. Si no sabes, di "Déjame comprobarlo".
 
 Productos disponibles:
@@ -39,14 +42,19 @@ ${context}
 
 Pregunta del cliente:
 ${question}
-`;
+    `;
 
-  const gptRes = await openai.createChatCompletion({
-    model: "gpt-4",
-    messages: [{ role: "user", content: prompt }]
-  });
+    const gptRes = await openai.chat.completions.create({
+      model: "gpt-4",
+      messages: [{ role: "user", content: prompt }]
+    });
 
-  res.json({ reply: gptRes.data.choices[0].message.content });
+    res.json({ reply: gptRes.choices[0].message.content });
+
+  } catch (error) {
+    console.error("Error al procesar la solicitud:", error.message);
+    res.status(500).json({ error: "Hubo un error con el chatbot." });
+  }
 });
 
 // Iniciar servidor
