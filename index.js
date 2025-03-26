@@ -1,12 +1,17 @@
 require("dotenv").config();
 const express = require("express");
+const cors = require("cors");
 const axios = require("axios");
-const OpenAI = require("openai"); // ← NUEVO
+const OpenAI = require("openai");
 
 const app = express();
 app.use(express.json());
 
-// Inicializa OpenAI con la sintaxis de la v4
+// ✅ Configura CORS para aceptar peticiones desde Shopify
+app.use(cors({
+  origin: "https://surfin-store-spain.myshopify.com" // ← reemplaza con el dominio de tu tienda real
+}));
+
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
 });
@@ -31,7 +36,6 @@ app.post("/ask", async (req, res) => {
 
   try {
     const products = await getProducts();
-
     const context = products.map(p => `${p.title}: ${p.body_html}`).join("\n");
 
     const prompt = `
